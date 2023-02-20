@@ -6,12 +6,27 @@
 
 #include "FuzzerTracePC.h"
 
+// #define ANALYSE_COVERAGE_MISMATCH
+#define CHECK_FOR_COVERAGE_MISMATCH
+
+#ifdef ANALYSE_COVERAGE_MISMATCH
+#define CHECK_FOR_COVERAGE_MISMATCH
+static const int DEBUG_INDEX = 0;
+#endif
+
+#ifdef CHECK_FOR_COVERAGE_MISMATCH
+static const bool DEBUG_COVERAGE_MISMATCH = false;
+#endif
+
+namespace fuzzer {
+
 struct Range {
   int start;
   int end;
 };
 
 struct Target {
+  std::string identifier;
   Range modules;
   Range pctables;
 };
@@ -20,7 +35,7 @@ struct BatchResult {
   /**
    * Output (i.e. serialized internal representation) for each target
    */
-  std::vector<std::vector<uint8_t>> Output;
+  std::vector<Unit> Output;
 
   /**
    * Nezha implementation:
@@ -42,6 +57,8 @@ struct BatchResult {
    * Set of edges visited by each target (only the hash of the set is saved)
    */
   std::vector<int> PCFine;
+
+  std::vector<uintptr_t> DEBUG_edges;
 };
 
 struct CumulativeResults {
@@ -52,13 +69,11 @@ struct CumulativeResults {
   std::set<uint32_t> TupleHashes;
 };
 
-namespace fuzzer {
-
 class DTManager {
 public:
   int getNumberOfModules() const;
   int getNumberOfPCTables() const;
-  void registerProgramCoverage(Range modules, Range pctables);
+  void registerProgramCoverage(std::string id, Range modules, Range pctables);
 
   void startBatch(const uint8_t *, size_t);
   void endBatch();
@@ -67,7 +82,6 @@ public:
 
   bool isInterestingRun() const;
 
-private:
   std::vector<Target> targets;
 
   BatchResult batchResult;
@@ -76,6 +90,10 @@ private:
   Unit inputData;
   bool interestingState = false;
 };
+
+uint32_t hashInt(uint32_t x, uint32_t seed);
+uint32_t hashVector(const std::vector<int> &vec);
+uint32_t hashVector(const fuzzer::Unit &vec);
 
 }; // namespace fuzzer
 

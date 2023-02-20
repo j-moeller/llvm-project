@@ -44,7 +44,10 @@ bool RunningUserCallback = false;
 
 // Only one Fuzzer per process.
 static Fuzzer *F;
+
+#ifdef DIFFERENTIAL_TESTING
 extern DTManager DTM;
+#endif
 
 // Leak detection is expensive, so we first check if there were more mallocs
 // than frees (using the sanitizer malloc hooks) and only then try to call lsan.
@@ -535,7 +538,7 @@ bool Fuzzer::RunOne(const uint8_t *Data, size_t Size, bool MayDeleteFile,
   PrintPulseAndReportSlowInput(Data, Size);
   size_t NumNewFeatures = Corpus.NumFeatureUpdates() - NumUpdatesBefore;
 #ifdef DIFFERENTIAL_TESTING
-  bool IsInterestingRun = DTM.isInterestingRun();
+  bool IsInterestingRun = NumNewFeatures > 0 || DTM.isInterestingRun();
 #else
   bool IsInterestingRun = NumNewFeatures > 0;
 #endif

@@ -15,7 +15,6 @@
 #include "FuzzerDictionary.h"
 #include "FuzzerValueBitMap.h"
 
-#define DIFFERENTIAL_TESTING 
 #ifdef DIFFERENTIAL_TESTING
 #include "FuzzerDifferential.h"
 #endif
@@ -73,7 +72,9 @@ struct MemMemTable {
 };
 
 class TracePC {
+#ifdef DIFFERENTIAL_TESTING
   friend class DTManager;
+#endif
 
  public:
   void HandleInline8bitCountersInit(uint8_t *Start, uint8_t *Stop);
