@@ -545,12 +545,27 @@ private:
     }
 
     if (VanillaSchedule) {
-      for (size_t i = 0; i < N; i++)
+      for (size_t i = 0; i < N; i++) {
         Weights[i] =
             Inputs[i]->NumFeatures
                 ? static_cast<double>((i + 1) *
                                       (Inputs[i]->HasFocusFunction ? 1000 : 1))
                 : 0.;
+      }
+
+      bool allZero = true;
+      for (size_t i = 0; i < N; i++) {
+        if (Weights[i] > 0.0) {
+          allZero = false;
+          break;
+        }
+      }
+
+      if (allZero) {
+        for (size_t i = 0; i < N; i++) {
+          Weights[i] = 1.0;
+        }
+      }
     }
 
     if (FeatureDebug) {
