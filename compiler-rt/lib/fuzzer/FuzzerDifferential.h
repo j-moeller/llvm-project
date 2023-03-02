@@ -6,18 +6,6 @@
 
 #include "FuzzerTracePC.h"
 
-// #define ANALYSE_COVERAGE_MISMATCH
-#define CHECK_FOR_COVERAGE_MISMATCH
-
-#ifdef ANALYSE_COVERAGE_MISMATCH
-#define CHECK_FOR_COVERAGE_MISMATCH
-static const int DEBUG_INDEX = 0;
-#endif
-
-#ifdef CHECK_FOR_COVERAGE_MISMATCH
-static const bool DEBUG_COVERAGE_MISMATCH = false;
-#endif
-
 namespace fuzzer {
 
 struct Range {
@@ -58,7 +46,8 @@ struct BatchResult {
    */
   std::vector<int> PCFine;
 
-  std::vector<uintptr_t> DEBUG_edges;
+  Unit inputData;
+  std::vector<std::vector<uintptr_t>> edges;
 };
 
 struct CumulativeResults {
@@ -87,13 +76,23 @@ public:
   BatchResult batchResult;
   CumulativeResults cumResult;
 
-  Unit inputData;
   bool interestingState = false;
 };
 
 uint32_t hashInt(uint32_t x, uint32_t seed);
 uint32_t hashVector(const std::vector<int> &vec);
-uint32_t hashVector(const fuzzer::Unit &vec);
+uint32_t hashVector(const Unit &vec);
+
+bool isTrailingGarbageClass(const Unit &input,
+                            const std::vector<Unit> &outputs);
+bool isAddsCommaClass(const Unit &input, const std::vector<Unit> &outputs);
+bool isContainsUnicodeEscapeClass(const Unit &input,
+                                  const std::vector<Unit> &outputs);
+bool isAddsQuotesClass(const Unit &input, const std::vector<Unit> &outputs);
+bool isRemovesCommaClass(const Unit &input, const std::vector<Unit> &outputs);
+bool isNumberOnlyClass(const Unit &input, const std::vector<Unit> &outputs);
+bool isStringOnlyClass(const Unit &input, const std::vector<Unit> &outputs);
+std::string assignClass(const Unit &input, const std::vector<Unit> &outputs);
 
 }; // namespace fuzzer
 
