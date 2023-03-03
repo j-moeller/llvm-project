@@ -19,6 +19,12 @@ struct Target {
   Range pctables;
 };
 
+struct EdgeCoverage {
+  uintptr_t PC;
+  uintptr_t ptr;
+  uint8_t hits;
+};
+
 struct BatchResult {
   /**
    * Output (i.e. serialized internal representation) for each target
@@ -47,7 +53,7 @@ struct BatchResult {
   std::vector<int> PCFine;
 
   Unit inputData;
-  std::vector<std::vector<uintptr_t>> edges;
+  std::vector<std::vector<EdgeCoverage>> edges;
 };
 
 struct CumulativeResults {

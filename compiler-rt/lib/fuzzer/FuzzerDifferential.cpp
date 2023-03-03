@@ -409,7 +409,7 @@ void DTManager::startBatch(const uint8_t *Data, size_t Size) {
   this->batchResult.PDCoarse = std::vector<int>(this->targets.size());
   this->batchResult.PCFine = std::vector<int>(this->targets.size());
   this->batchResult.edges =
-      std::vector<std::vector<uintptr_t>>(this->targets.size());
+      std::vector<std::vector<EdgeCoverage>>(this->targets.size());
   this->interestingState = false;
 }
 
@@ -488,17 +488,19 @@ void DTManager::endRun(int targetIndex, int exit_code,
       if (!region.Enabled) {
         continue;
       }
-      for (uint8_t *edge = region.Start; edge < region.Stop; edge++)
+      for (uint8_t *edge = region.Start; edge < region.Stop; edge++) {
         if (*edge) {
           int edgeIdx = module.Idx(edge);
           auto *entry = &pctable.Start[edgeIdx];
 
           this->batchResult.edges[targetIndex].push_back(
-              reinterpret_cast<std::uintptr_t>(entry->PC));
+              {reinterpret_cast<std::uintptr_t>(entry->PC),
+               reinterpret_cast<std::uintptr_t>(edge), *edge});
 
           this->batchResult.PDCoarse[targetIndex] += *edge;
           edgeHash = hashInt(reinterpret_cast<std::uintptr_t>(edge), edgeHash);
         }
+      }
     }
   }
 
