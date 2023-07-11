@@ -89,17 +89,6 @@ uint32_t hashInt(uint32_t x, uint32_t seed);
 uint32_t hashVector(const std::vector<int> &vec);
 uint32_t hashVector(const Unit &vec);
 
-bool isTrailingGarbageClass(const Unit &input,
-                            const std::vector<Unit> &outputs);
-bool isAddsCommaClass(const Unit &input, const std::vector<Unit> &outputs);
-bool isContainsUnicodeEscapeClass(const Unit &input,
-                                  const std::vector<Unit> &outputs);
-bool isAddsQuotesClass(const Unit &input, const std::vector<Unit> &outputs);
-bool isRemovesCommaClass(const Unit &input, const std::vector<Unit> &outputs);
-bool isNumberOnlyClass(const Unit &input, const std::vector<Unit> &outputs);
-bool isStringOnlyClass(const Unit &input, const std::vector<Unit> &outputs);
-std::string assignClass(const Unit &input, const std::vector<Unit> &outputs);
-
 }; // namespace fuzzer
 
 #endif
