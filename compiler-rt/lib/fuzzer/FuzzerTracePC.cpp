@@ -30,6 +30,7 @@ ATTRIBUTES_INTERFACE_TLS_INITIAL_EXEC uintptr_t __sancov_lowest_stack;
 namespace fuzzer {
 
 TracePC TPC;
+bool DisableCoverage = false;
 
 size_t TracePC::GetTotalPCCoverage() {
   return ObservedPCs.size();
@@ -37,6 +38,7 @@ size_t TracePC::GetTotalPCCoverage() {
 
 
 void TracePC::HandleInline8bitCountersInit(uint8_t *Start, uint8_t *Stop) {
+  if (DisableCoverage) return;
   if (Start == Stop) return;
   if (NumModules &&
       Modules[NumModules - 1].Start() == Start)
@@ -69,6 +71,7 @@ void TracePC::HandleInline8bitCountersInit(uint8_t *Start, uint8_t *Stop) {
 }
 
 void TracePC::HandlePCsInit(const uintptr_t *Start, const uintptr_t *Stop) {
+  if (DisableCoverage) return;
   const PCTableEntry *B = reinterpret_cast<const PCTableEntry *>(Start);
   const PCTableEntry *E = reinterpret_cast<const PCTableEntry *>(Stop);
   if (NumPCTables && ModulePCTable[NumPCTables - 1].Start == B) return;
@@ -119,6 +122,7 @@ void TracePC::PrintModuleInfo() {
 
 ATTRIBUTE_NO_SANITIZE_ALL
 void TracePC::HandleCallerCallee(uintptr_t Caller, uintptr_t Callee) {
+  if (DisableCoverage) return;
   const uintptr_t kBits = 12;
   const uintptr_t kMask = (1 << kBits) - 1;
   uintptr_t Idx = (Caller & kMask) | ((Callee & kMask) << kBits);
@@ -347,6 +351,7 @@ void TracePC::PrintCoverage(bool PrintAllCounters) {
 ATTRIBUTE_NO_SANITIZE_ALL
 void TracePC::AddValueForMemcmp(void *caller_pc, const void *s1, const void *s2,
                                 size_t n, bool StopAtZero) {
+  if (DisableCoverage) return;
   if (!n) return;
   size_t Len = std::min(n, Word::GetMaxSize());
   const uint8_t *A1 = reinterpret_cast<const uint8_t *>(s1);
@@ -381,6 +386,7 @@ template <class T>
 ATTRIBUTE_TARGET_POPCNT ALWAYS_INLINE
 ATTRIBUTE_NO_SANITIZE_ALL
 void TracePC::HandleCmp(uintptr_t PC, T Arg1, T Arg2) {
+  if (DisableCoverage) return;
   uint64_t ArgXor = Arg1 ^ Arg2;
   if (sizeof(T) == 4)
       TORC4.Insert(ArgXor, Arg1, Arg2);
