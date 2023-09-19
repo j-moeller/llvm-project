@@ -136,6 +136,8 @@ class TracePC {
   static uintptr_t GetNextInstructionPc(uintptr_t PC);
   bool PcIsFuncEntry(const PCTableEntry *TE) { return TE->PCFlags & 1; }
 
+  int N_PCs = 0;
+
 private:
   bool UseCounters = false;
   uint32_t UseValueProfileMask = false;

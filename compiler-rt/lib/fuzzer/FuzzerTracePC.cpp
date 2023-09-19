@@ -180,6 +180,7 @@ void TracePC::UpdateObservedPCs() {
 
   if (NumPCsInPCTables) {
     if (NumInline8bitCounters == NumPCsInPCTables) {
+      N_PCs = 0;
       for (size_t i = 0; i < NumModules; i++) {
         auto &M = Modules[i];
         assert(M.Size() ==
@@ -187,9 +188,11 @@ void TracePC::UpdateObservedPCs() {
         for (size_t r = 0; r < M.NumRegions; r++) {
           auto &R = M.Regions[r];
           if (!R.Enabled) continue;
-          for (uint8_t *P = R.Start; P < R.Stop; P++)
+          for (uint8_t *P = R.Start; P < R.Stop; P++) {
+            N_PCs++;
             if (*P)
               Observe(&ModulePCTable[i].Start[M.Idx(P)]);
+          }
         }
       }
     }

@@ -334,7 +334,7 @@ void Fuzzer::PrintStats(const char *Where, const char *End, size_t Units,
   Printf("#%zd\t%s", TotalNumberOfRuns, Where);
   Printf(" %zds", secondsSinceProcessStartUp());
   if (size_t N = TPC.GetTotalPCCoverage())
-    Printf(" cov: %zd", N);
+    Printf(" cov: %zd / %zd", N, TPC.N_PCs);
   if (size_t N = Features ? Features : Corpus.NumFeatures())
     Printf(" ft: %zd", N);
   if (!Corpus.empty()) {
