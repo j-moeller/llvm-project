@@ -1,4 +1,4 @@
-#include "FuzzerDifferential.h"
+#include "FuzzerDifferentialInternal.h"
 
 #include "FuzzerIO.h"
 #include "FuzzerSHA1.h"
@@ -15,6 +15,52 @@ namespace fuzzer {
 
 DTManager DTM;
 extern TracePC TPC;
+
+} // namespace fuzzer
+
+static int number_of_modules = 0;
+static int number_of_pctables = 0;
+
+extern "C" {
+void LLVMFuzzerStartRegistration() {
+  number_of_modules = fuzzer::DTM.getNumberOfModules();
+  number_of_pctables = fuzzer::DTM.getNumberOfPCTables();
+}
+
+int LLVMFuzzerEndRegistration() {
+  return fuzzer::DTM.registerProgramCoverage(
+      {number_of_modules, fuzzer::DTM.getNumberOfModules()},
+      {number_of_pctables, fuzzer::DTM.getNumberOfPCTables()});
+}
+
+void LLVMFuzzerGetSectionInfo(int handler, FDSection *info) {
+  auto &section = fuzzer::DTM.sections[handler];
+
+  info->modules.start = section.modules.start;
+  info->modules.end = section.modules.end;
+  info->pctables.start = section.pctables.start;
+  info->pctables.end = section.pctables.end;
+}
+
+void LLVMFuzzerStartBatch(int n_targets) { fuzzer::DTM.startBatch(n_targets); }
+void LLVMFuzzerEndBatch() { fuzzer::DTM.endBatch(); }
+
+int LLVMFuzzerStartRun() { return fuzzer::DTM.startRun(); }
+void LLVMFuzzerEndRun(const int *sectionIds, int sectionsSize, int exitCode) {
+  fuzzer::DTM.endRun(sectionIds, sectionsSize, exitCode);
+}
+
+void LLVMTargetCoverage(int targetIndex, const unsigned long **edges,
+                        int *edgeSize) {
+  fuzzer::DTM.getTargetCoverage(targetIndex, edges, edgeSize);
+}
+
+void LLVMNezhaCoverage(int *coarseCoverage, int *fineCoverage) {
+  fuzzer::DTM.getNezhaCoverage(coarseCoverage, fineCoverage);
+}
+}
+
+namespace fuzzer {
 
 uint32_t hashInt(uint32_t x, uint32_t seed) {
   x = ((x >> 16) ^ x) * 0x45d9f3b;
@@ -41,35 +87,6 @@ uint32_t hashVector(const Unit &vec) {
   return seed;
 }
 
-} // namespace fuzzer
-
-// TODO: Make sure that LLVMFuzzerStartRegistration and
-// LLVMFuzzerEndRegistration are called with the same identifier
-static int n_modules = 0;
-static int n_pctables = 0;
-
-extern "C" {
-void LLVMFuzzerStartRegistration(const char *) {
-  n_modules = fuzzer::DTM.getNumberOfModules();
-  n_pctables = fuzzer::DTM.getNumberOfPCTables();
-}
-void LLVMFuzzerEndRegistration(const char *id) {
-  fuzzer::DTM.registerProgramCoverage(
-      id, {n_modules, fuzzer::DTM.getNumberOfModules()},
-      {n_pctables, fuzzer::DTM.getNumberOfPCTables()});
-}
-void LLVMFuzzerStartBatch(const uint8_t *Data, size_t Size) {
-  fuzzer::DTM.startBatch(Data, Size);
-}
-void LLVMFuzzerEndBatch() { fuzzer::DTM.endBatch(); }
-void LLVMFuzzerStartRun(int i) { fuzzer::DTM.startRun(i); }
-void LLVMFuzzerEndRun(int i, int exit_code, const uint8_t *data, size_t size) {
-  fuzzer::DTM.endRun(i, exit_code, data, size);
-}
-}
-
-namespace fuzzer {
-
 bool atLeastOneParserAccepts(const BatchResult &br) {
   auto sum = [](const int &acc, const int &v) {
     return (v == 0) ? acc + 1 : acc;
@@ -84,8 +101,7 @@ int DTManager::getNumberOfModules() const { return TPC.NumModules; }
 
 int DTManager::getNumberOfPCTables() const { return TPC.NumPCTables; }
 
-void DTManager::registerProgramCoverage(std::string id, Range modules,
-                                        Range pctables) {
+int DTManager::registerProgramCoverage(FDRange modules, FDRange pctables) {
   int size = 0;
   for (int i = modules.start; i < modules.end; i++) {
     size += TPC.Modules[i].Size();
@@ -98,22 +114,17 @@ void DTManager::registerProgramCoverage(std::string id, Range modules,
 
   assert(size == n_pctables);
 
-  std::cerr << "Registered '" << std::string(id) << "' with "
-            << std::to_string(size) << " edges" << std::endl;
-
-  this->targets.push_back({id, modules, pctables});
+  this->sections.push_back({modules, pctables});
+  return this->sections.size() - 1;
 }
 
-void DTManager::startBatch(const uint8_t *Data, size_t Size) {
-  this->batchResult.inputData = {Data, Data + Size};
-
-  this->batchResult.ExitCode = std::vector<int>(this->targets.size());
-  this->batchResult.Output = std::vector<Unit>(this->targets.size());
-  this->batchResult.PDCoarse = std::vector<int>(this->targets.size());
-  this->batchResult.PCFine = std::vector<int>(this->targets.size());
-  this->batchResult.edges =
-      std::vector<std::vector<EdgeCoverage>>(this->targets.size());
+void DTManager::startBatch(int n_targets) {
+  this->batchResult.Edges = std::vector<std::vector<uintptr_t>>(n_targets);
+  this->batchResult.ExitCode = std::vector<int>(n_targets);
+  this->batchResult.PDCoarse = std::vector<int>(n_targets);
+  this->batchResult.PCFine = std::vector<int>(n_targets);
   this->interestingState = false;
+  this->currentTarget = 0;
 }
 
 void DTManager::endBatch() {
@@ -141,67 +152,67 @@ void DTManager::endBatch() {
   this->interestingState &= fineTupleIter.second;
 }
 
-void DTManager::startRun(int targetIndex) {}
+int DTManager::startRun() { return this->currentTarget; }
 
-void DTManager::endRun(int targetIndex, int exit_code,
-                       const uint8_t *OutputData, size_t OutputSize) {
-  auto &target = this->targets[targetIndex];
-  auto &modules = target.modules;
-  auto &pctables = target.pctables;
-
-  assert(modules.end - modules.start == pctables.end - pctables.start);
-  const int n_modules = modules.end - modules.start;
-
-  /*
-   * Exit code
-   */
-  this->batchResult.ExitCode[targetIndex] = exit_code;
-
-  /*
-   * (string) Output
-   */
-  this->batchResult.Output[targetIndex] =
-      Unit(OutputData, OutputData + OutputSize);
-
-  /*
-   * Edges
-   * PDCoarse
-   * PCFine
-   */
+void DTManager::endRun(const int *sectionIds, size_t sectionIdsSize,
+                       int exitCode) {
   int edgeHash = 0;
 
-  for (int i = 0; i < n_modules; i++) {
-    auto moduleIndex = modules.start + i;
-    auto pctableIndex = pctables.start + i;
+  for (int xyz = 0; xyz < sectionIdsSize; xyz++) {
+    int sectionId = sectionIds[xyz];
 
-    auto &module = TPC.Modules[moduleIndex];
-    auto &pctable = TPC.ModulePCTable[pctableIndex];
+    auto &section = this->sections[sectionId];
+    auto &modules = section.modules;
+    auto &pctables = section.pctables;
 
-    const int n_edges = module.Size();
-    assert(n_edges == pctable.Stop - pctable.Start);
+    assert(modules.end - modules.start == pctables.end - pctables.start);
+    const int n_modules = modules.end - modules.start;
 
-    for (size_t r = 0; r < module.NumRegions; r++) {
-      auto &region = module.Regions[r];
-      if (!region.Enabled) {
-        continue;
-      }
-      for (uint8_t *edge = region.Start; edge < region.Stop; edge++) {
-        if (*edge) {
-          int edgeIdx = module.Idx(edge);
-          auto *entry = &pctable.Start[edgeIdx];
+    for (int i = 0; i < n_modules; i++) {
+      auto moduleIndex = modules.start + i;
+      auto pctableIndex = pctables.start + i;
 
-          this->batchResult.edges[targetIndex].push_back(
-              {reinterpret_cast<std::uintptr_t>(entry->PC),
-               reinterpret_cast<std::uintptr_t>(edge), *edge});
+      auto &module = TPC.Modules[moduleIndex];
+      auto &pctable = TPC.ModulePCTable[pctableIndex];
 
-          this->batchResult.PDCoarse[targetIndex] += *edge;
-          edgeHash = hashInt(reinterpret_cast<std::uintptr_t>(edge), edgeHash);
+      const int n_edges = module.Size();
+      assert(n_edges == pctable.Stop - pctable.Start);
+
+      for (size_t r = 0; r < module.NumRegions; r++) {
+        auto &region = module.Regions[r];
+        if (!region.Enabled) {
+          continue;
+        }
+        for (uint8_t *edge = region.Start; edge < region.Stop; edge++) {
+          if (*edge) {
+            auto e = reinterpret_cast<std::uintptr_t>(edge);
+
+            this->batchResult.Edges[this->currentTarget].push_back(e);
+            this->batchResult.PDCoarse[this->currentTarget] += 1;
+            edgeHash = hashInt(e, edgeHash);
+          }
         }
       }
     }
   }
 
-  this->batchResult.PCFine[targetIndex] = edgeHash;
+  this->batchResult.ExitCode[this->currentTarget] = exitCode;
+  this->batchResult.PCFine[this->currentTarget] = edgeHash;
+
+  this->currentTarget++;
+}
+
+void DTManager::getTargetCoverage(int targetIndex, const unsigned long **edges,
+                                  int *edgeSize) const {
+  const auto &edgeList = this->batchResult.Edges[targetIndex];
+
+  *edges = &edgeList[0];
+  *edgeSize = edgeList.size();
+}
+
+void DTManager::getNezhaCoverage(int *coarseCoverage, int *fineCoverage) const {
+  *coarseCoverage = this->cumResult.PDCoarseHashes.size();
+  *fineCoverage = this->cumResult.PCFineHashes.size();
 }
 
 bool DTManager::isInterestingRun() const { return this->interestingState; }
