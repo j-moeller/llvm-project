@@ -21,6 +21,10 @@
 #include <mutex>
 #include <set>
 
+#ifdef DIFFERENTIAL_TESTING
+#include "FuzzerDifferentialInternal.h"
+#endif
+
 #if defined(__has_include)
 #if __has_include(<sanitizer / lsan_interface.h>)
 #include <sanitizer/lsan_interface.h>

@@ -15,7 +15,6 @@
 #include "FuzzerDictionary.h"
 #include "FuzzerValueBitMap.h"
 
-#define DIFFERENTIAL_TESTING
 #ifdef DIFFERENTIAL_TESTING
 #include "FuzzerDifferential.h"
 #endif
